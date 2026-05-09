@@ -3,44 +3,66 @@
 # to run the daemon on their machine. Run with:
 #   docker compose up -d
 
+
 # ============================================================
 # Prompt de bootstrap para Claude Code (otro repo, mismo compose)
 # ------------------------------------------------------------
-# Configura acceso git SSH y entorno de desarrollo para
-# <OWNER>/<REPO> dentro del contenedor Dokploy <CONTAINER_NAME>
-# (image paseo-claude, usuario paseo, volumen paseo-ssh -> ~/.ssh).
+# Configura acceso git SSH, entorno Python standalone y registra
+# el repo en el daemon paseo dentro del contenedor Dokploy
+# <CONTAINER_NAME> (image paseo-claude, usuario paseo, volumen
+# paseo-ssh -> ~/.ssh, volumen workspace -> /workspace).
+# Todo lo intrusivo (write a GitHub, edicion de los JSON del
+# daemon) ya esta pre-aprobado; no se pide confirmacion en pasos
+# individuales.
 #
 # A) SSH:
-#  1. Si no existe ~/.ssh/id_ed25519:
+#  1. Si no existe ~/.ssh/id_ed25519 dentro del contenedor:
 #       ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
 #       ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
-#  2. Desde el HOST (no contenedor) anade la publica como
+#     (idempotente: saltar si ya existen).
+#  2. Desde el HOST (no contenedor), leer la pubkey via
+#     `docker exec ... cat id_ed25519.pub` y registrarla como
 #     deploy key con escritura:
-#       gh api -X POST repos/<OWNER>/<REPO>/keys \
+#       gh api repos/<OWNER>/<REPO>/keys \
 #         -f title="<CONTAINER_NAME>" -f key="<PUB>" \
 #         -F read_only=false
-#     Pide confirmacion antes (write access).
-#  3. git clone -b <BRANCH> git@github.com:<OWNER>/<REPO>.git \
-#       /workspace/<REPO>
+#  3. Probar `ssh -T git@github.com` (exit 1 es normal),
+#     configurar git user.name/user.email global, y clonar:
+#       git clone git@github.com:<OWNER>/<REPO>.git \
+#         /workspace/<REPO>
 #
-# B) Toolchain standalone dentro del repo (NO toca sistema):
-#  4. Detecta versiones desde el repo (Dockerfile, .nvmrc,
-#     package.json). Instala uv y fnm en <REPO>/.tools/.
-#     Crea venv en <BACKEND_DIR>/.venv con la version detectada
-#     e instala requirements.txt + paquetes locales (libs/*).
-#     En <FRONTEND_DIR> corre npm ci.
-#  5. Genera .tools/activate.sh que exporte PATH con
-#     .tools/uv/bin, .tools/fnm/bin, <BACKEND_DIR>/.venv/bin.
+# B) Python standalone dentro del repo (NO toca sistema):
+#  4. Detectar version Python desde
+#     <REPO>/<BACKEND_DIR>/Dockerfile.
+#  5. Resolver tarball mas reciente de
+#     astral-sh/python-build-standalone (asset
+#     x86_64-unknown-linux-gnu-install_only_stripped.tar.gz)
+#     via `gh api .../releases/latest`.
+#  6. Dentro de /workspace/<REPO>: descargar con curl,
+#     extraer con tar -xz, mover a `.python/`, crear venv en
+#     `.venv/` con `.python/bin/python3 -m venv .venv` y hacer
+#     `pip install -r <BACKEND_DIR>/requirements.txt`.
+#  7. Smoke test de imports clave del repo.
 #
-# C) Gitignore + verificacion:
-#  6. Anade a .gitignore: .tools/, .venv/, **/node_modules/.
-#     Commit local (NO push).
-#  7. source .tools/activate.sh y comprueba python --version,
-#     node --version, ejecutar tests/lint.
+# C) Gitignore (sin commit):
+#  8. Anadir `.python/` y `.venv/` al .gitignore en dos sitios:
+#     working copy local del usuario y clon del contenedor.
+#     NO add, NO commit, NO push.
 #
-# Necesito: <CONTAINER_NAME>, <OWNER>/<REPO>, <BRANCH>,
-#           <BACKEND_DIR>, <FRONTEND_DIR>.
+# D) Registrar en el daemon paseo:
+#  9. Paseo CLI no tiene `project add`. Editar directamente:
+#       /home/paseo/.paseo/projects/projects.json
+#       /home/paseo/.paseo/projects/workspaces.json
+#     Leer primero para deducir el schema, anadir un project
+#     nuevo (uuid, name=<REPO>) y un workspace que lo
+#     referencie con path=/workspace/<REPO>. Escribir atomico
+#     via /tmp + mv. Verificar en la UI; si no aparece,
+#     restart del compose en Dokploy.
+#
+# Necesito: <CONTAINER_NAME>, <OWNER>/<REPO>, <BACKEND_DIR>,
+#           <GIT_NAME>, <GIT_EMAIL>.
 # ============================================================
+
 
 
 services:
