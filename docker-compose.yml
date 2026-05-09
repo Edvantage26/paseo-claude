@@ -3,6 +3,46 @@
 # to run the daemon on their machine. Run with:
 #   docker compose up -d
 
+# ============================================================
+# Prompt de bootstrap para Claude Code (otro repo, mismo compose)
+# ------------------------------------------------------------
+# Configura acceso git SSH y entorno de desarrollo para
+# <OWNER>/<REPO> dentro del contenedor Dokploy <CONTAINER_NAME>
+# (image paseo-claude, usuario paseo, volumen paseo-ssh -> ~/.ssh).
+#
+# A) SSH:
+#  1. Si no existe ~/.ssh/id_ed25519:
+#       ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
+#       ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
+#  2. Desde el HOST (no contenedor) anade la publica como
+#     deploy key con escritura:
+#       gh api -X POST repos/<OWNER>/<REPO>/keys \
+#         -f title="<CONTAINER_NAME>" -f key="<PUB>" \
+#         -F read_only=false
+#     Pide confirmacion antes (write access).
+#  3. git clone -b <BRANCH> git@github.com:<OWNER>/<REPO>.git \
+#       /workspace/<REPO>
+#
+# B) Toolchain standalone dentro del repo (NO toca sistema):
+#  4. Detecta versiones desde el repo (Dockerfile, .nvmrc,
+#     package.json). Instala uv y fnm en <REPO>/.tools/.
+#     Crea venv en <BACKEND_DIR>/.venv con la version detectada
+#     e instala requirements.txt + paquetes locales (libs/*).
+#     En <FRONTEND_DIR> corre npm ci.
+#  5. Genera .tools/activate.sh que exporte PATH con
+#     .tools/uv/bin, .tools/fnm/bin, <BACKEND_DIR>/.venv/bin.
+#
+# C) Gitignore + verificacion:
+#  6. Anade a .gitignore: .tools/, .venv/, **/node_modules/.
+#     Commit local (NO push).
+#  7. source .tools/activate.sh y comprueba python --version,
+#     node --version, ejecutar tests/lint.
+#
+# Necesito: <CONTAINER_NAME>, <OWNER>/<REPO>, <BRANCH>,
+#           <BACKEND_DIR>, <FRONTEND_DIR>.
+# ============================================================
+
+
 services:
   paseo:
     image: ghcr.io/edvantage26/paseo-claude:latest
