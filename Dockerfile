@@ -30,11 +30,16 @@ RUN userdel -r node 2>/dev/null || true \
 USER paseo
 WORKDIR /workspace
 
-# Where Paseo and Claude Code keep state — declare as volumes so they persist
+# Where Paseo and Claude Code keep state — declare as volumes so they persist.
+# `~/.ssh` is also a named volume so a container-local SSH key persists across
+# container recreates without leaking the host's keys into the image.
 ENV PASEO_HOME=/home/paseo/.paseo
 ENV PASEO_LISTEN=0.0.0.0:6767
-RUN mkdir -p /home/paseo/.paseo /home/paseo/.claude
-VOLUME ["/home/paseo/.paseo", "/home/paseo/.claude", "/workspace"]
+RUN mkdir -p /home/paseo/.paseo /home/paseo/.claude /home/paseo/.ssh \
+    && chmod 700 /home/paseo/.ssh \
+    && ssh-keyscan -t ed25519,ecdsa,rsa github.com > /home/paseo/.ssh/known_hosts 2>/dev/null \
+    && chmod 600 /home/paseo/.ssh/known_hosts
+VOLUME ["/home/paseo/.paseo", "/home/paseo/.claude", "/home/paseo/.ssh", "/workspace"]
 
 # No EXPOSE: by default the daemon connects outbound to the Paseo relay.
 # If you want direct LAN access, publish 6767 at `docker run`/compose level

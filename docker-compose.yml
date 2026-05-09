@@ -23,6 +23,9 @@ services:
       - paseo-home:/home/paseo/.paseo
       # Persist Claude Code auth — NEVER bake this into the image
       - claude-home:/home/paseo/.claude
+      # Container-local SSH key for git clone/push. Generate inside the
+      # container (see README) and add the public key to your GitHub account.
+      - paseo-ssh:/home/paseo/.ssh
       # Mount your code here so agents can edit it
       - ./workspace:/workspace
     environment:
@@ -33,3 +36,4 @@ services:
 volumes:
   paseo-home:
   claude-home:
+  paseo-ssh:

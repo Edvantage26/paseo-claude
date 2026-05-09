@@ -58,7 +58,26 @@ Then connect with `paseo --host "tcp://<host>:6767?password=your-strong-secret" 
 
 - `/home/paseo/.paseo` — daemon keys, sessions, config. Persist this.
 - `/home/paseo/.claude` — **Claude Code OAuth tokens.** Persist this, never bake into the image.
+- `/home/paseo/.ssh` — container-local SSH key for git. Persist this. The image ships with `known_hosts` for github.com pre-populated, so the first `git clone` will not prompt.
 - `/workspace` — your code. Bind-mount the project directory you want the agents to work on.
+
+## SSH setup for GitHub
+
+The container uses its own SSH key (stored in the `paseo-ssh` named volume), not your host's keys. Set it up once after the container is running:
+
+```bash
+# 1. Generate a key inside the container
+docker exec -it paseo ssh-keygen -t ed25519 -C "paseo@$(hostname)" -f /home/paseo/.ssh/id_ed25519 -N ""
+
+# 2. Print the public key — add it to https://github.com/settings/keys
+docker exec paseo cat /home/paseo/.ssh/id_ed25519.pub
+
+# 3. Verify
+docker exec paseo ssh -T git@github.com
+# Expected: "Hi <user>! You've successfully authenticated..."
+```
+
+After that, agents inside the container can `git clone git@github.com:Org/Repo.git` and `git push` in `/workspace` without further setup. The key persists in the `paseo-ssh` volume across container recreates.
 
 ## Build locally
 
