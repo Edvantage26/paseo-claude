@@ -1,0 +1,35 @@
+# Example compose file for running the published image locally.
+# NOT used by the GitHub Actions build — only for end users who want
+# to run the daemon on their machine. Run with:
+#   docker compose up -d
+
+services:
+  paseo:
+    image: ghcr.io/edvantage26/paseo-claude:latest
+    container_name: paseo
+    restart: unless-stopped
+
+    # No port exposed by default. The daemon connects outbound to the Paseo
+    # relay, and clients (mobile app, CLI) meet it there. No inbound ports
+    # required, no firewall changes needed.
+    #
+    # If you want direct LAN/VPN access instead, uncomment the block below
+    # and set PASEO_PASSWORD in the environment section.
+    # ports:
+    #   - "6767:6767"
+
+    volumes:
+      # Persist Paseo state (daemon keys, sessions, config)
+      - paseo-home:/home/paseo/.paseo
+      # Persist Claude Code auth — NEVER bake this into the image
+      - claude-home:/home/paseo/.claude
+      # Mount your code here so agents can edit it
+      - ./workspace:/workspace
+    environment:
+      TZ: Europe/Madrid
+      # Required only if you uncomment ports above for direct connections:
+      # PASEO_PASSWORD: ${PASEO_PASSWORD}
+
+volumes:
+  paseo-home:
+  claude-home:
